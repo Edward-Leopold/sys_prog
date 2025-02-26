@@ -2,6 +2,7 @@
 #include <stdbool.h>  
 #include <string.h>
 #include <ctype.h>
+#include <time.h>
 
 #define FILE_PATH "users.dat"
 
@@ -19,6 +20,61 @@ typedef struct User{
     int pin;
     int cmds_num;
 } User;
+
+void cmd_time() {
+    time_t t = time(NULL);
+    struct tm *tm_info = localtime(&t);
+    printf("Current time: %02d:%02d:%02d\n", tm_info->tm_hour, tm_info->tm_min, tm_info->tm_sec);
+}
+
+void cmd_date(char* args) {
+    time_t t = time(NULL);
+    struct tm *tm_info = localtime(&t);
+    printf("Current date: %02d:%02d:%04d\n", tm_info->tm_mday, tm_info->tm_mon + 1, tm_info->tm_year + 1900);
+}
+
+void cmd_logout(char* args) {
+    printf("Logging out...\n");
+}
+
+void cmd_howmuch(char* args) {
+    printf("Executing Howmuch with args: %s\n", args);
+}
+
+void cmd_sanctions(char* args) {
+    printf("Executing Sanctions with args: %s\n", args);
+}
+
+
+typedef struct Command{
+    char* name;
+    int params;
+    void (*execute)();
+} Command;
+
+const Command commands[5] = {
+    {
+        .name = "Time",
+        .params = 0,    
+        .execute = cmd_time,
+    },
+    {
+        .name = "Date",
+        .params = 0,    
+    },
+    {
+        .name = "Howmuch",
+        .params = 2,    
+    },
+    {
+        .name = "Logout",
+        .params = 0,    
+    },
+    {
+        .name = "Sanctions",
+        .params = 2,    
+    },
+};
 
 errCodes base_save_user(User *u) {
     FILE *file = fopen(FILE_PATH, "ab"); // "append binary"
@@ -147,6 +203,31 @@ errCodes register_user(User *u) {
     return result;
 }
 
+void execute_cmd(char * cmd){
+    int cmds = sizeof(commands) / sizeof(Command);
+    for (int i = 0; i < cmds; ++i){
+        if (strcmp(cmd, commands[i].name) == 0){
+            commands[i].execute();
+            while (getchar() != '\n');
+            return;
+        }
+    }
+    printf("No such command\n");
+    while (getchar() != '\n');
+    return;
+}
+
+void session(User *u){
+    printf("\nSystem\n");
+
+    char command[20];
+    while (true){
+        printf("Enter a command: ");
+        scanf("%19s", command);
+        execute_cmd(command);
+    }
+    
+}
 int main(){
 
     while (true){
@@ -168,13 +249,15 @@ int main(){
         case 1:
             result = login_user(&u);
             if (result == USER_FOUND){
-                printf("session..."); // session()
+                // printf("session..."); // session()
+                session(&u);
             }
             break;
         case 2:
             result = register_user(&u);
             if (result == SUCCESS){
-                printf("session..."); // session()
+                // printf("session..."); // session()
+                session(&u);
             }
             break;
         default:
