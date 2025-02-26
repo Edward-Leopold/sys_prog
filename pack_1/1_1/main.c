@@ -14,6 +14,13 @@ typedef enum errCodes{
     USER_FOUND,
 } errCodes;
 
+typedef enum cmdsCodes{
+    SUCCESS,
+    LOGOUT,
+    ERR_OPEN_FILE,  
+    DATE_FORMAT_ERR,
+} cmdsCodes;
+
 
 typedef struct User{
     char login[7];
@@ -21,27 +28,126 @@ typedef struct User{
     int cmds_num;
 } User;
 
-void cmd_time() {
+char* get_current_time_str() {
     time_t t = time(NULL);
     struct tm *tm_info = localtime(&t);
-    printf("Current time: %02d:%02d:%02d\n", tm_info->tm_hour, tm_info->tm_min, tm_info->tm_sec);
+    char time_str[9];
+    snprintf(time_str, sizeof(time_str), "%02d:%02d:%02d", tm_info->tm_hour, tm_info->tm_min, tm_info->tm_sec);
+    return time_str;
 }
 
-void cmd_date(char* args) {
+char* get_current_date_str(){
     time_t t = time(NULL);
     struct tm *tm_info = localtime(&t);
-    printf("Current date: %02d:%02d:%04d\n", tm_info->tm_mday, tm_info->tm_mon + 1, tm_info->tm_year + 1900);
+    char date_str[11];
+    snprintf(date_str, sizeof(date_str), "%02d:%02d:%04d", tm_info->tm_mday, tm_info->tm_mon + 1, tm_info->tm_year + 1900);
+    return date_str;
 }
 
-void cmd_logout(char* args) {
+int day_of_month(int month, int year){
+    int days[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    if (year % 4 == 0){
+        days[1] = 29;
+        if (year % 100 == 0 && year % 400 != 0) days[1] = 28;
+    } 
+    return days[month - 1];
+}
+
+cmdsCodes parse_time(const char* datetime, struct tm* timestruct){
+    int day, month, year, hours, minutes, seconds;
+    if (sscanf(datetime, "%d:%d:%d-%d:%d:%d", &day, &month, &year, &hours, &minutes, &seconds) != 6) {
+        return DATE_FORMAT_ERR;
+    }
+
+    if ((seconds >= 60 || seconds < 0) || (minutes >= 60 || minutes < 0) || (hours >= 24 || hours < 0)) return DATE_FORMAT_ERR;
+    if ((year > 2050 || year < 1950) || (month < 1 || month > 12)) return DATE_FORMAT_ERR;
+    if (day < 1 || day > day_of_month(month, year)) return DATE_FORMAT_ERR;
+
+    timestruct->tm_mday = day;
+    timestruct->tm_mon = month - 1;
+    timestruct->tm_year = year - 1900;
+    timestruct->tm_hour = hours;
+    timestruct->tm_min = minutes;
+    timestruct->tm_sec = seconds;
+    timestruct->tm_isdst = -1;
+
+    time_t timestamp = mktime(timestruct);
+    if (timestamp == -1) {
+        return DATE_FORMAT_ERR;
+    }
+
+    return SUCCESS;
+}
+
+cmdsCodes cmd_time() {
+    printf("Current time: %s\n", get_current_time_str());
+    return SUCCESS;
+}
+
+cmdsCodes cmd_date() {
+    printf("Current date: %s\n", get_current_date_str());
+    return SUCCESS;
+}
+
+cmdsCodes cmd_logout(char* args) {
     printf("Logging out...\n");
+    return LOGOUT;
 }
 
-void cmd_howmuch(char* args) {
-    printf("Executing Howmuch with args: %s\n", args);
+cmdsCodes cmd_howmuch() {
+    char input[50];
+    // printf("Enter time and flag: ");
+    
+    if (!fgets(input, sizeof(input), stdin)) {
+        printf("Input error.\n");
+        return DATE_FORMAT_ERR;
+    }
+
+    // Убираем символ новой строки, если он есть
+    input[strcspn(input, "\n")] = 0;
+
+    char time_str[20], flag[3];  
+    if (sscanf(input, "%19s %2s", time_str, flag) != 2) {
+        printf("Invalid format. Usage: Howmuch <time> <flag>\n");
+        return DATE_FORMAT_ERR;
+    }
+    printf("time_str: %s, flag: %s\n", time_str, flag);
+
+    struct tm parsed_time;
+    if (parse_time(time_str, &parsed_time) != SUCCESS) {
+        printf("Invalid time format. Expected format: DD:MM:YYYY-HH:MM:SS\n");
+        return DATE_FORMAT_ERR;
+    }
+
+    // Получаем текущее время
+    time_t now = time(NULL);
+    time_t past_time = mktime(&parsed_time);
+
+    if (past_time == -1) {
+        printf("Error converting time.\n");
+        return DATE_FORMAT_ERR;
+    }
+
+    double diff_seconds = difftime(now, past_time);
+
+    if (strcmp(flag, "-s") == 0) {
+        printf("Elapsed time: %.0f seconds\n", diff_seconds);
+    } else if (strcmp(flag, "-m") == 0) {
+        printf("Elapsed time: %.0f minutes\n", diff_seconds / 60);
+    } else if (strcmp(flag, "-h") == 0) {
+        printf("Elapsed time: %.1f hours\n", diff_seconds / 3600);
+    } else if (strcmp(flag, "-y") == 0) {
+        printf("Elapsed time: %.2f years\n", diff_seconds / (3600 * 24 * 365.25));
+    } else {
+        printf("Invalid flag. Use -s, -m, -h, or -y.\n");
+        return DATE_FORMAT_ERR;
+    }
+
+    return SUCCESS;
 }
 
-void cmd_sanctions(char* args) {
+
+cmdsCodes cmd_sanctions(char* args) {
     printf("Executing Sanctions with args: %s\n", args);
 }
 
@@ -61,18 +167,22 @@ const Command commands[5] = {
     {
         .name = "Date",
         .params = 0,    
+        .execute = cmd_date,
     },
     {
         .name = "Howmuch",
         .params = 2,    
+        .execute = cmd_howmuch,
     },
     {
         .name = "Logout",
         .params = 0,    
+        .execute = cmd_logout,
     },
     {
         .name = "Sanctions",
         .params = 2,    
+        .execute = cmd_sanctions,
     },
 };
 
