@@ -15,6 +15,9 @@ typedef enum errCodes{
     USER_FOUND,
     MEM_ALLOC_ERR,
     DATE_FORMAT_ERR,
+    FLAG_FORMAT_ERR,
+    TOO_FEW_PARAMS_ERR,
+    TOO_MANY_PARAMS_ERR,
     LOGOUT,
 } errCodes;
 
@@ -122,12 +125,20 @@ errCodes cmd_logout(char* args) {
     return LOGOUT;
 }
 
-errCodes cmd_howmuch() {
+errCodes cmd_howmuch_parse_params(char ** msg){
     char *input;
-    
-    if (dynamic_fgets(&input) != SUCCESS) {
-        printf("Memory allocation error.\n");
-        return DATE_FORMAT_ERR;
+
+    errCodes result;
+    result = dynamic_fgets(&input);
+
+    switch (result){
+    case MEM_ALLOC_ERR:
+        return MEM_ALLOC_ERR;
+        break;
+    case SUCCESS:
+        break;
+    default:
+        break;
     }
 
     char time_str[21], flag[4], extra[2];  
@@ -138,52 +149,89 @@ errCodes cmd_howmuch() {
     free(input);
     
     if(time_str[19]){
-        printf("Invalid time format. Expected format: DD:MM:YYYY-HH:MM:SS\n");
         return DATE_FORMAT_ERR;
     }else if(flag[2]){
-        printf("Invalid flag format\n");
-        return DATE_FORMAT_ERR; // нужно придумать свой код ошибки, если неправильно написан флаг в к
+        return FLAG_FORMAT_ERR;
     }
 
-    if (count < 2) {  
-        printf("Invalid format. Usage: Howmuch <time> <flag>\n");
-        return DATE_FORMAT_ERR;
+    if (count < 2) {
+        return TOO_FEW_PARAMS_ERR;
     }
     if (count > 2) {
         printf("time_str: %s, flag: %s, extra: %s\n", time_str, flag, extra);  
-        printf("Too many arguments. Usage: Howmuch <time> <flag>\n");
-        return DATE_FORMAT_ERR;
+        return TOO_MANY_PARAMS_ERR;
     }
 
     struct tm parsed_time;
-    if (parse_time(time_str, &parsed_time) != SUCCESS) {
-        printf("Invalid time format. Expected format: DD:MM:YYYY-HH:MM:SS\n");
+    result = parse_time(time_str, &parsed_time);
+    switch (result){
+    case DATE_FORMAT_ERR:
         return DATE_FORMAT_ERR;
+        break;
+    case SUCCESS:
+        break;
+    default:
+        break;
     }
 
     time_t now = time(NULL);
     time_t past_time = mktime(&parsed_time);
 
     if (past_time == -1) {
-        printf("Error converting time.\n");
         return DATE_FORMAT_ERR;
     }
 
+    char *buffer = malloc(100);
+    if (!buffer) return MEM_ALLOC_ERR;
+    
     double diff_seconds = difftime(now, past_time);
-
     if (strcmp(flag, "-s") == 0) {
-        printf("Elapsed time: %.0f seconds\n", diff_seconds);
+        sprintf(buffer, "Elapsed time: %.0f seconds\n", diff_seconds);
     } else if (strcmp(flag, "-m") == 0) {
-        printf("Elapsed time: %.0f minutes\n", diff_seconds / 60);
+        sprintf(buffer, "Elapsed time: %.0f minutes\n", diff_seconds / 60);
     } else if (strcmp(flag, "-h") == 0) {
-        printf("Elapsed time: %.1f hours\n", diff_seconds / 3600);
+        sprintf(buffer, "Elapsed time: %.1f hours\n", diff_seconds / 3600);
     } else if (strcmp(flag, "-y") == 0) {
-        printf("Elapsed time: %.2f years\n", diff_seconds / (3600 * 24 * 365.25));
+        sprintf(buffer, "Elapsed time: %.2f years\n", diff_seconds / (3600 * 24 * 365.25));
     } else {
-        printf("Invalid flag. Use -s, -m, -h, or -y.\n");
-        return DATE_FORMAT_ERR;
+        return FLAG_FORMAT_ERR;
     }
 
+    *msg = buffer;
+    return SUCCESS;
+}
+
+errCodes cmd_howmuch() {
+    char *msg = NULL;
+
+    errCodes result = cmd_howmuch_parse_params(&msg);
+
+    switch (result){
+    case MEM_ALLOC_ERR:
+        printf("Memory allocation error occured during execution of the command\n");
+        break;
+    case DATE_FORMAT_ERR:
+        printf("Invalid time format. Expected format: DD:MM:YYYY-HH:MM:SS\n");
+        break;
+    case FLAG_FORMAT_ERR:
+        printf("Invalid flag format. Use -s, -m, -h, or -y.\n");
+        break;
+    case TOO_FEW_PARAMS_ERR:
+        printf("Too few params for this command. Usage: Howmuch <time> <flag>\n");
+        break;
+    case TOO_MANY_PARAMS_ERR:
+        printf("Too many params for this command. Usage: Howmuch <time> <flag>\n");
+        break;
+    case SUCCESS:
+        printf("%s\n", msg);
+        free(msg);
+        break;
+    default:
+        break;
+    }
+
+    // Now the function always returns "success", until I figured out how to use return codes other than in error message output. 
+    // Maybe later I’ll make this function void
     return SUCCESS;
 }
 
