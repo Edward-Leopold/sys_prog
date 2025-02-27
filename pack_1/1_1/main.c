@@ -14,15 +14,9 @@ typedef enum errCodes{
     USER_NOT_FOUND,
     USER_FOUND,
     MEM_ALLOC_ERR,
-} errCodes;
-
-typedef enum cmdsCodes{
-    NORMAL,
-    LOGOUT,
-    ERR_OPEN_FILE,  
     DATE_FORMAT_ERR,
-} cmdsCodes;
-
+    LOGOUT,
+} errCodes;
 
 typedef struct User{
     char login[7];
@@ -87,7 +81,7 @@ int day_of_month(int month, int year){
     return days[month - 1];
 }
 
-cmdsCodes parse_time(const char* datetime, struct tm* timestruct){
+errCodes parse_time(const char* datetime, struct tm* timestruct){
     int day, month, year, hours, minutes, seconds;
     if (sscanf(datetime, "%d:%d:%d-%d:%d:%d", &day, &month, &year, &hours, &minutes, &seconds) != 6) {
         return DATE_FORMAT_ERR;
@@ -113,22 +107,22 @@ cmdsCodes parse_time(const char* datetime, struct tm* timestruct){
     return SUCCESS;
 }
 
-cmdsCodes cmd_time() {
+errCodes cmd_time() {
     printf("Current time: %s\n", get_current_time_str());
-    return NORMAL;
+    return SUCCESS;
 }
 
-cmdsCodes cmd_date() {
+errCodes cmd_date() {
     printf("Current date: %s\n", get_current_date_str());
-    return NORMAL;
+    return SUCCESS;
 }
 
-cmdsCodes cmd_logout(char* args) {
+errCodes cmd_logout(char* args) {
     printf("Logging out...\n");
     return LOGOUT;
 }
 
-cmdsCodes cmd_howmuch() {
+errCodes cmd_howmuch() {
     char *input;
     
     if (dynamic_fgets(&input) != SUCCESS) {
@@ -162,7 +156,7 @@ cmdsCodes cmd_howmuch() {
     }
 
     struct tm parsed_time;
-    if (parse_time(time_str, &parsed_time) != NORMAL) {
+    if (parse_time(time_str, &parsed_time) != SUCCESS) {
         printf("Invalid time format. Expected format: DD:MM:YYYY-HH:MM:SS\n");
         return DATE_FORMAT_ERR;
     }
@@ -190,11 +184,12 @@ cmdsCodes cmd_howmuch() {
         return DATE_FORMAT_ERR;
     }
 
-    return NORMAL;
+    return SUCCESS;
 }
 
-cmdsCodes cmd_sanctions(char* args) {
+errCodes cmd_sanctions(char* args) {
     printf("Executing Sanctions with args: %s\n", args);
+    return SUCCESS;
 }
 
 
