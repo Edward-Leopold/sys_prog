@@ -12,10 +12,11 @@ typedef enum errCodes{
     FILE_OPEN_ERR,
     USER_NOT_FOUND,
     USER_FOUND,
+    MEM_ALLOC_ERR,
 } errCodes;
 
 typedef enum cmdsCodes{
-    SUCCESS,
+    NORMAL,
     LOGOUT,
     ERR_OPEN_FILE,  
     DATE_FORMAT_ERR,
@@ -27,6 +28,38 @@ typedef struct User{
     int pin;
     int cmds_num;
 } User;
+
+errCodes dynamic_fgets(char ** s) {
+    size_t size = 16;  // Начальный размер буфера
+    size_t len = 0;    // Текущая длина строки
+    char *buffer = malloc(size);
+    
+    if (!buffer) return MEM_ALLOC_ERR;  // Проверяем выделение памяти
+
+    int ch;
+    while ((ch = getchar()) != '\n' && ch != EOF) {
+        if (len + 1 >= size) {  // Увеличиваем буфер при необходимости
+            size *= 2;
+            char *new_buffer = realloc(buffer, size);
+            if (!new_buffer) {
+                free(buffer);
+                return MEM_ALLOC_ERR;
+            }
+            buffer = new_buffer;
+        }
+        buffer[len++] = (char)ch;
+    }
+
+    if (len == 0 && ch == EOF) {  // Если EOF в самом начале — вернуть NULL
+        free(buffer);
+        return MEM_ALLOC_ERR;
+    }
+
+    buffer[len] = '\0';  // Завершаем строку
+    *s = buffer;
+
+    return SUCCESS;
+}
 
 char* get_current_time_str() {
     time_t t = time(NULL);
@@ -81,12 +114,12 @@ cmdsCodes parse_time(const char* datetime, struct tm* timestruct){
 
 cmdsCodes cmd_time() {
     printf("Current time: %s\n", get_current_time_str());
-    return SUCCESS;
+    return NORMAL;
 }
 
 cmdsCodes cmd_date() {
     printf("Current date: %s\n", get_current_date_str());
-    return SUCCESS;
+    return NORMAL;
 }
 
 cmdsCodes cmd_logout(char* args) {
@@ -95,31 +128,44 @@ cmdsCodes cmd_logout(char* args) {
 }
 
 cmdsCodes cmd_howmuch() {
-    char input[50];
-    // printf("Enter time and flag: ");
+    char *input;
     
-    if (!fgets(input, sizeof(input), stdin)) {
-        printf("Input error.\n");
+    if (dynamic_fgets(&input) != SUCCESS) {
+        printf("Memory allocation error.\n");
         return DATE_FORMAT_ERR;
     }
 
-    // Убираем символ новой строки, если он есть
-    input[strcspn(input, "\n")] = 0;
+    char time_str[21], flag[4], extra[2];  
+    memset(time_str, 0, sizeof(time_str));
+    memset(flag, 0, sizeof(flag));
+    memset(extra, 0, sizeof(extra));
+    int count = sscanf(input, "%20s %3s %1s", time_str, flag, extra);
+    free(input);
+    
+    if(time_str[19]){
+        printf("Invalid time format. Expected format: DD:MM:YYYY-HH:MM:SS\n");
+        return DATE_FORMAT_ERR;
+    }else if(flag[2]){
+        printf("Invalid flag format\n");
+        return DATE_FORMAT_ERR; // нужно придумать свой код ошибки, если неправильно написан флаг в к
+    }
 
-    char time_str[20], flag[3];  
-    if (sscanf(input, "%19s %2s", time_str, flag) != 2) {
+    if (count < 2) {  
         printf("Invalid format. Usage: Howmuch <time> <flag>\n");
         return DATE_FORMAT_ERR;
     }
-    printf("time_str: %s, flag: %s\n", time_str, flag);
+    if (count > 2) {
+        printf("time_str: %s, flag: %s, extra: %s\n", time_str, flag, extra);  
+        printf("Too many arguments. Usage: Howmuch <time> <flag>\n");
+        return DATE_FORMAT_ERR;
+    }
 
     struct tm parsed_time;
-    if (parse_time(time_str, &parsed_time) != SUCCESS) {
+    if (parse_time(time_str, &parsed_time) != NORMAL) {
         printf("Invalid time format. Expected format: DD:MM:YYYY-HH:MM:SS\n");
         return DATE_FORMAT_ERR;
     }
 
-    // Получаем текущее время
     time_t now = time(NULL);
     time_t past_time = mktime(&parsed_time);
 
@@ -143,9 +189,8 @@ cmdsCodes cmd_howmuch() {
         return DATE_FORMAT_ERR;
     }
 
-    return SUCCESS;
+    return NORMAL;
 }
-
 
 cmdsCodes cmd_sanctions(char* args) {
     printf("Executing Sanctions with args: %s\n", args);
