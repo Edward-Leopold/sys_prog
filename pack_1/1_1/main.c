@@ -11,6 +11,7 @@
 typedef enum errCodes{
     SUCCESS,
     FILE_OPEN_ERR,
+    FILE_WRITE_ERR,
     USER_NOT_FOUND,
     USER_FOUND,
     MEM_ALLOC_ERR,
@@ -21,6 +22,7 @@ typedef enum errCodes{
     TOO_FEW_PARAMS_ERR,
     TOO_MANY_PARAMS_ERR,
     LOGIN_ALREADY_EXISTS,
+    CONFIRMATION_FAULT,
     LOGOUT,
 } errCodes;
 
@@ -65,6 +67,24 @@ errCodes dynamic_fgets(char ** s) {
     *s = buffer;
 
     return SUCCESS;
+}
+
+errCodes check_exist_login(char* s){
+    FILE *file = fopen(FILE_PATH, "rb");
+    if (!file) {
+        return FILE_OPEN_ERR;
+    }
+
+    User temp;
+    while (fread(&temp, sizeof(User), 1, file)) {
+        if (strcmp(temp.login, s) == 0) {
+            fclose(file);
+            return USER_FOUND;
+        }
+    }
+
+    fclose(file);
+    return USER_NOT_FOUND;
 }
 
 char* get_current_time_str() {
@@ -263,8 +283,151 @@ errCodes cmd_howmuch() {
     return SUCCESS;
 }
 
+errCodes set_user_sanctions(const char* username, int num) {
+    FILE *file = fopen(FILE_PATH, "r+b");
+    if (!file) {
+        return FILE_OPEN_ERR;
+    }
+
+    User temp;
+    while (fread(&temp, sizeof(User), 1, file)) {
+        if (strcmp(temp.login, username) == 0) {
+            temp.cmds_num = num;
+
+            fseek(file, -sizeof(User), SEEK_CUR);
+
+            if (fwrite(&temp, sizeof(User), 1, file) != 1) {
+                fclose(file);
+                return FILE_WRITE_ERR;
+            }
+
+            fclose(file);
+            return SUCCESS;
+        }
+    }
+
+    fclose(file);
+    return USER_NOT_FOUND;
+}
+
+errCodes cmd_sanctions_ask_confirmation(){
+    printf("Confirm the command (type 12345)\n");
+    char s[7];
+    memset(s, 0, sizeof(s));
+    scanf("%6s", s);
+    if (s[5] || strcmp(s, "12345") != 0){
+        return CONFIRMATION_FAULT;
+    }
+    return SUCCESS;
+}
+
+
+errCodes cmd_sanctions_parse_params(){
+    char *input;
+
+    errCodes result;
+    result = dynamic_fgets(&input);
+
+    switch (result){
+    case MEM_ALLOC_ERR:
+        return MEM_ALLOC_ERR;
+        break;
+    case SUCCESS:
+        break;
+    default:
+        break;
+    }
+
+    char username[8], extra[2];
+    int num;  
+    memset(username, 0, sizeof(username));
+    memset(extra, 0, sizeof(extra));
+    int count = sscanf(input, "%7s %d %1s", username, &num, extra);
+    free(input);
+
+    if(username[6]){
+        return LOGIN_FORMAT_ERR;
+    }
+
+    if (count < 2) {
+        return TOO_FEW_PARAMS_ERR;
+    }
+    if (count > 2) {
+        printf("username: %s, num: %d, extra: %s\n", username, num, extra); // debugging 
+        return TOO_MANY_PARAMS_ERR;
+    }
+
+    result = check_exist_login(username);
+    switch (result){
+    case USER_NOT_FOUND:
+        return result;
+    case FILE_OPEN_ERR:
+        return result;
+    case USER_FOUND:
+        break;
+    default:
+        break;
+    }
+
+    result = cmd_sanctions_ask_confirmation();
+    if (result == CONFIRMATION_FAULT){
+        return result;
+    }
+
+    // need to think up how to check num for correctness
+    result = set_user_sanctions(username, num);
+    switch (result){
+    case USER_NOT_FOUND:
+        return result;
+    case FILE_OPEN_ERR:
+        return result;
+    case FILE_WRITE_ERR:
+        return result;
+    case USER_FOUND:
+        break;
+    default:
+        break;
+    }
+    
+    return SUCCESS;
+}
+
 errCodes cmd_sanctions(char* args) {
-    printf("Executing Sanctions with args: %s\n", args);
+    errCodes result = cmd_sanctions_parse_params();
+
+    switch (result){
+    case MEM_ALLOC_ERR:
+        printf("Memory allocation error occured during execution of the command\n");
+        break;
+    case LOGIN_FORMAT_ERR:
+        printf("Invalid username format\n");
+        break;
+    case TOO_FEW_PARAMS_ERR:
+        printf("Too few params for this command. Usage: Sanctions <username> <number>\n");
+        break;
+    case TOO_MANY_PARAMS_ERR:
+        printf("Too many params for this command. Usage: Sanctions <username> <number>\n");
+        break;
+    case USER_NOT_FOUND:
+        printf("User with that username was not found\n");
+        break;
+    case FILE_OPEN_ERR:
+        printf("Error occured while reading from file!\n");
+        break;
+    case FILE_WRITE_ERR:
+        printf("Error occured while writing to file!\n");
+        break;
+    case CONFIRMATION_FAULT:
+        printf("You aborted the command\n");
+        break;
+    case SUCCESS:
+        printf("Restrictions have been successfully applied\n");
+        break;
+    default:
+        break;
+    }
+
+    // printf("Executing Sanctions with args: %s\n", args);
     return SUCCESS;
 }
 
@@ -311,6 +474,7 @@ errCodes base_auth_user(User *u) {
     User temp;
     while (fread(&temp, sizeof(User), 1, file)) {
         if (strcmp(temp.login, u->login) == 0 && temp.pin == u->pin) {
+            u->cmds_num = temp.cmds_num;
             fclose(file);
             return USER_FOUND;
         }
@@ -334,23 +498,7 @@ bool validate_pin(int n){
     return false;
 }
 
-errCodes check_exist_login(char* s){
-    FILE *file = fopen(FILE_PATH, "rb");
-    if (!file) {
-        return FILE_OPEN_ERR;
-    }
 
-    User temp;
-    while (fread(&temp, sizeof(User), 1, file)) {
-        if (strcmp(temp.login, s) == 0) {
-            fclose(file);
-            return USER_FOUND;
-        }
-    }
-
-    fclose(file);
-    return USER_NOT_FOUND;
-}
 
 errCodes get_user_login(User *u, bool is_registration){
     char *input;
@@ -611,6 +759,7 @@ errCodes execute_cmd(char * cmd){
 void session(User *u){
     printf("\nSystem\n");
     printf("Welcome, %s!\n", u->login);
+    printf("Your amount of commands %d!\n", u->cmds_num);
     errCodes result;
     char command[20];
     while (true){
@@ -623,6 +772,7 @@ void session(User *u){
     }
     
 }
+
 int main(){
 
     while (true){
