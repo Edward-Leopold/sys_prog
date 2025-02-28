@@ -18,6 +18,7 @@ typedef enum errCodes{
     FLAG_FORMAT_ERR,
     TOO_FEW_PARAMS_ERR,
     TOO_MANY_PARAMS_ERR,
+    LOGIN_ALREADY_EXISTS,
     LOGOUT,
 } errCodes;
 
@@ -338,6 +339,29 @@ bool validate_pin(int n){
     return false;
 }
 
+errCodes check_exist_login(char* s){
+    FILE *file = fopen(FILE_PATH, "rb");
+    if (!file) {
+        return FILE_OPEN_ERR;
+    }
+
+    User temp;
+    while (fread(&temp, sizeof(User), 1, file)) {
+        if (strcmp(temp.login, s) == 0) {
+            fclose(file);
+            return USER_FOUND;
+        }
+    }
+
+    fclose(file);
+    return USER_NOT_FOUND;
+}
+
+errCodes get_login(User *u){
+    
+
+    return SUCCESS;
+}
 
 errCodes login_user(User *u) {
     while (true){
@@ -386,10 +410,22 @@ errCodes register_user(User *u) {
     while (true){
         char temp[8];
         printf("Enter your login: ");
-        if(scanf("%7s", temp) == 1 && validate_login(temp)){
-            strcpy(u->login, temp);
-            while (getchar() != '\n');
-            break;
+        if(scanf("%7s", temp) == 1){
+            if(validate_login(temp)){
+                errCodes res = check_exist_login(temp);
+                if (res == USER_NOT_FOUND){
+                    strcpy(u->login, temp);
+                    while (getchar() != '\n');
+                    break;
+                } else if (res == USER_FOUND) {
+                    printf("Login already exists\n");
+                    while (getchar() != '\n');
+                    continue;   
+                }else if(res == FILE_OPEN_ERR){
+                    printf("Error accessing user file!\n");
+                    return res;
+                }
+            }
         }
         printf("Invalid login. Try again\n");
         while (getchar() != '\n');
