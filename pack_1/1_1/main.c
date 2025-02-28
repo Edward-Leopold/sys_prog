@@ -16,6 +16,8 @@ typedef enum errCodes{
     MEM_ALLOC_ERR,
     DATE_FORMAT_ERR,
     FLAG_FORMAT_ERR,
+    LOGIN_FORMAT_ERR,
+    PIN_FORMAT_ERR,
     TOO_FEW_PARAMS_ERR,
     TOO_MANY_PARAMS_ERR,
     LOGIN_ALREADY_EXISTS,
@@ -180,7 +182,6 @@ errCodes cmd_howmuch_parse_params(char ** msg){
         return TOO_FEW_PARAMS_ERR;
     }
     if (count > 2) {
-        printf("time_str: %s, flag: %s, extra: %s\n", time_str, flag, extra);  
         return TOO_MANY_PARAMS_ERR;
     }
 
@@ -357,40 +358,152 @@ errCodes check_exist_login(char* s){
     return USER_NOT_FOUND;
 }
 
-errCodes get_login(User *u){
-    
+errCodes get_user_login(User *u, bool is_registration){
+    char *input;
 
+    errCodes result;
+    result = dynamic_fgets(&input);
+
+    switch (result){
+    case MEM_ALLOC_ERR:
+        return MEM_ALLOC_ERR;
+        break;
+    case SUCCESS:
+        break;
+    default:
+        break;
+    }
+
+    char login_temp[8];
+    char extra[2];
+    memset(login_temp, 0, sizeof(login_temp));
+    memset(extra, 0, sizeof(extra));
+    int count = sscanf(input, "%6s %1s", login_temp, extra);
+    free(input);
+
+    if(count < 1){
+        return TOO_FEW_PARAMS_ERR;
+    } else if (count > 1) {
+        return TOO_MANY_PARAMS_ERR;
+    }
+
+    if (!validate_login(login_temp)){
+        return LOGIN_FORMAT_ERR;
+    }
+    
+    if (is_registration){
+        result = check_exist_login(login_temp);
+
+        switch (result){
+        case USER_FOUND:
+            return LOGIN_ALREADY_EXISTS;
+        case FILE_OPEN_ERR:
+            return result;
+        case USER_NOT_FOUND:
+            break;
+        default:
+            break;
+        }
+    }
+    
+    strcpy(u->login, login_temp);
+    return SUCCESS;
+}
+
+errCodes get_user_pin(User *u){
+    char *input;
+
+    errCodes result;
+    result = dynamic_fgets(&input);
+
+    switch (result){
+    case MEM_ALLOC_ERR:
+        return MEM_ALLOC_ERR;
+        break;
+    case SUCCESS:
+        break;
+    default:
+        break;
+    }
+
+    int pin_temp;
+    char extra[2];
+    memset(extra, 0, sizeof(extra));
+    int count = sscanf(input, "%d %1s", &pin_temp, extra);
+    free(input);
+
+    if(count < 1){
+        return TOO_FEW_PARAMS_ERR;
+    } else if (count > 1) {
+        return TOO_MANY_PARAMS_ERR;
+    }
+
+    if (!validate_pin(pin_temp)){
+        return PIN_FORMAT_ERR;
+    }
+
+    u->pin = pin_temp;
     return SUCCESS;
 }
 
 errCodes login_user(User *u) {
     while (true){
-        char temp[8];
         printf("Enter login: ");
-        if(scanf("%7s", temp) == 1 && validate_login(temp)){
-            strcpy(u->login, temp);
-            while (getchar() != '\n');
+        errCodes res = get_user_login(u, false);
+        switch (res){
+        case MEM_ALLOC_ERR:
+            printf("Memory allocation error occured!\n");
+            break;
+        case TOO_FEW_PARAMS_ERR:
+            printf("No login was entered\n");
+            break;
+        case TOO_MANY_PARAMS_ERR:
+            printf("Invalid login format\n");
+            break;
+        case LOGIN_FORMAT_ERR:
+            printf("Invalid login format\n");
+            break;
+        case SUCCESS:
+            break;
+        default:
             break;
         }
-        printf("Invalid login. Try again\n");
-        while (getchar() != '\n');
+
+        if (res == SUCCESS){
+            break;
+        }
     }
     while (true){
-        int temp;
         printf("Enter pin: ");
-        if (scanf("%d", &temp) == 1 && validate_pin(temp)){
-            u->pin = temp;
-            while (getchar() != '\n');
+        errCodes res = get_user_pin(u);
+        switch (res){
+        case MEM_ALLOC_ERR:
+            printf("Memory allocation error occured!\n");
+            break;
+        case TOO_FEW_PARAMS_ERR:
+            printf("Invalid pin format\n");
+            break;
+        case TOO_MANY_PARAMS_ERR:
+            printf("Invalid pin format\n");
+            break;
+        case PIN_FORMAT_ERR:
+            printf("Invalid pin format\n");
+            break;
+        case SUCCESS:
+            break;
+        default:
             break;
         }
-        printf("Invalid pin. Try again\n");
-        while (getchar() != '\n');
-    }   
+
+        if (res == SUCCESS){
+            break;
+        }
+    }
 
     errCodes result = base_auth_user(u);
     switch (result){
     case USER_FOUND:
-        printf("Welcome, %s!\n", u->login);
+        printf("Successfully authenticated\n");
         break;
     case USER_NOT_FOUND:
         printf("Invalid login or PIN.\n");
@@ -408,39 +521,65 @@ errCodes register_user(User *u) {
     printf("\nNew user registration\n");
     printf("Create a login (login can be no more than 6 characters long and consist of characters of the Latin alphabet and numbers)\n");
     while (true){
-        char temp[8];
         printf("Enter your login: ");
-        if(scanf("%7s", temp) == 1){
-            if(validate_login(temp)){
-                errCodes res = check_exist_login(temp);
-                if (res == USER_NOT_FOUND){
-                    strcpy(u->login, temp);
-                    while (getchar() != '\n');
-                    break;
-                } else if (res == USER_FOUND) {
-                    printf("Login already exists\n");
-                    while (getchar() != '\n');
-                    continue;   
-                }else if(res == FILE_OPEN_ERR){
-                    printf("Error accessing user file!\n");
-                    return res;
-                }
-            }
+        errCodes res = get_user_login(u, true);
+        switch (res){
+        case MEM_ALLOC_ERR:
+            printf("Memory allocation error occured!\n");
+            break;
+        case TOO_FEW_PARAMS_ERR:
+            printf("No login was entered\n");
+            break;
+        case TOO_MANY_PARAMS_ERR:
+            printf("Invalid login format\n");
+            break;
+        case LOGIN_FORMAT_ERR:
+            printf("Invalid login format\n");
+            break;
+        case LOGIN_ALREADY_EXISTS:
+            printf("Login already exists\n");
+            break;
+        case FILE_OPEN_ERR:
+            printf("Error openning user file\n");
+            break;
+        case SUCCESS:
+            printf("ok\n");
+            break;
+        default:
+            break;
         }
-        printf("Invalid login. Try again\n");
-        while (getchar() != '\n');
+
+        if (res == SUCCESS){
+            break;
+        }
     }
     printf("\nCreate a PIN (pin must be an integer in the range from 0 to 1000000)\n");
     while (true){
-        int temp;
         printf("Enter your pin: ");
-        if (scanf("%d", &temp) == 1 && validate_pin(temp)){
-            u->pin = temp;
-            while (getchar() != '\n');
+        errCodes res = get_user_pin(u);
+        switch (res){
+        case MEM_ALLOC_ERR:
+            printf("Memory allocation error occured!\n");
+            break;
+        case TOO_FEW_PARAMS_ERR:
+            printf("Invalid pin format\n");
+            break;
+        case TOO_MANY_PARAMS_ERR:
+            printf("Invalid pin format\n");
+            break;
+        case PIN_FORMAT_ERR:
+            printf("Invalid pin format\n");
+            break;
+        case SUCCESS:
+            printf("ok\n");
+            break;
+        default:
             break;
         }
-        printf("Invalid pin. Try again\n");
-        while (getchar() != '\n');
+
+        if (res == SUCCESS){
+            break;
+        }
     }
     u->cmds_num = -1;
     
@@ -506,6 +645,7 @@ int main(){
 
         User u;
         errCodes result;
+        while (getchar() != '\n');
         switch (command){
         case 1:
             result = login_user(&u);
