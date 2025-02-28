@@ -23,6 +23,7 @@ typedef enum errCodes{
     TOO_MANY_PARAMS_ERR,
     LOGIN_ALREADY_EXISTS,
     CONFIRMATION_FAULT,
+    INCORRECT_LIMIT_NUMBER,
     LOGOUT,
 } errCodes;
 
@@ -357,6 +358,8 @@ errCodes cmd_sanctions_parse_params(){
         return TOO_MANY_PARAMS_ERR;
     }
 
+    if (num < 1 && num != -1) return INCORRECT_LIMIT_NUMBER;
+
     result = check_exist_login(username);
     switch (result){
     case USER_NOT_FOUND:
@@ -407,6 +410,9 @@ errCodes cmd_sanctions(char* args) {
         break;
     case TOO_MANY_PARAMS_ERR:
         printf("Too many params for this command. Usage: Sanctions <username> <number>\n");
+        break;
+    case INCORRECT_LIMIT_NUMBER:
+        printf("The limit of commands must be correct natural integer number or -1 to set no limit\n");
         break;
     case USER_NOT_FOUND:
         printf("User with that username was not found\n");
@@ -759,7 +765,12 @@ errCodes execute_cmd(char * cmd){
 void session(User *u){
     printf("\nSystem\n");
     printf("Welcome, %s!\n", u->login);
-    printf("Your amount of commands %d!\n", u->cmds_num);
+    if (u->cmds_num > 0){
+        printf("Your limit of commands: %d\n", u->cmds_num);
+    }
+
+    bool is_limited = u->cmds_num > 0 ? true : false; 
+    int cnt = u->cmds_num;
     errCodes result;
     char command[20];
     while (true){
@@ -768,6 +779,15 @@ void session(User *u){
         result = execute_cmd(command);
         if (result == LOGOUT){
             return;
+        }
+
+        if (is_limited){
+            if(cnt > 0) --cnt;
+            if(cnt == 0) {
+                printf("You have exceeded your limit of commands for session\n");
+                printf("Logging out...\n");
+                return;
+            }
         }
     }
     
