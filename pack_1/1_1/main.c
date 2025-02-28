@@ -30,16 +30,21 @@ typedef struct User{
     int cmds_num;
 } User;
 
+typedef struct Command{
+    char* name;
+    errCodes (*execute)();
+} Command;
+
 errCodes dynamic_fgets(char ** s) {
-    size_t capacity = 16;  // Начальный размер буфера
-    size_t len = 0;    // Текущая длина строки
+    size_t capacity = 16;
+    size_t len = 0;
     char *buffer = (char*)malloc(sizeof(char) * capacity);
     
-    if (!buffer) return MEM_ALLOC_ERR;  // Проверяем выделение памяти
+    if (!buffer) return MEM_ALLOC_ERR; 
 
     int ch;
     while ((ch = getchar()) != '\n' && ch != EOF) {
-        if (len + 1 >= capacity) {  // Увеличиваем буфер при необходимости
+        if (len + 1 >= capacity) { 
             capacity *= 2;
             char *new_buffer = (char*)realloc(buffer, sizeof(char) * capacity);
             if (!new_buffer) {
@@ -51,12 +56,12 @@ errCodes dynamic_fgets(char ** s) {
         buffer[len++] = (char)ch;
     }
 
-    if (len == 0 && ch == EOF) {  // Если EOF в самом начале — вернуть NULL
+    if (len == 0 && ch == EOF) { 
         free(buffer);
         return MEM_ALLOC_ERR;
     }
 
-    buffer[len] = '\0';  // Завершаем строку
+    buffer[len] = '\0';
     *s = buffer;
 
     return SUCCESS;
@@ -264,36 +269,25 @@ errCodes cmd_sanctions(char* args) {
 }
 
 
-typedef struct Command{
-    char* name;
-    int params;
-    errCodes (*execute)();
-} Command;
-
 const Command commands[5] = {
     {
         .name = "Time",
-        .params = 0,    
         .execute = cmd_time,
     },
     {
         .name = "Date",
-        .params = 0,    
         .execute = cmd_date,
     },
     {
         .name = "Howmuch",
-        .params = 2,    
         .execute = cmd_howmuch,
     },
     {
         .name = "Logout",
-        .params = 0,    
         .execute = cmd_logout,
     },
     {
         .name = "Sanctions",
-        .params = 2,    
         .execute = cmd_sanctions,
     },
 };
