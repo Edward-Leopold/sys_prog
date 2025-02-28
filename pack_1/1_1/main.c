@@ -794,11 +794,12 @@ void session(User *u){
 }
 
 int main(){
-
-    while (true){
+    bool is_exit = false;
+    while (!is_exit){
         printf("\nAuthorise or register in the system:\n");
         printf("1: Authorisation\n");
         printf("2: Registration\n");
+        printf("0: Exit\n");
         printf("Enter command number: ");
 
         int command;
@@ -823,6 +824,9 @@ int main(){
             if (result == SUCCESS){
                 session(&u);
             }
+            break;
+        case 0:
+            is_exit = true;
             break;
         default:
             printf("unknown command\n");
