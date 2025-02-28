@@ -30,7 +30,7 @@ typedef struct User{
 errCodes dynamic_fgets(char ** s) {
     size_t size = 16;  // Начальный размер буфера
     size_t len = 0;    // Текущая длина строки
-    char *buffer = malloc(size);
+    char *buffer = (char*)malloc(sizeof(char) * size);
     
     if (!buffer) return MEM_ALLOC_ERR;  // Проверяем выделение памяти
 
@@ -38,7 +38,7 @@ errCodes dynamic_fgets(char ** s) {
     while ((ch = getchar()) != '\n' && ch != EOF) {
         if (len + 1 >= size) {  // Увеличиваем буфер при необходимости
             size *= 2;
-            char *new_buffer = realloc(buffer, size);
+            char *new_buffer = (char*)realloc(buffer, sizeof(char) * size);
             if (!new_buffer) {
                 free(buffer);
                 return MEM_ALLOC_ERR;
@@ -60,18 +60,23 @@ errCodes dynamic_fgets(char ** s) {
 }
 
 char* get_current_time_str() {
+    char *time_str = (char*)malloc(sizeof(char) * 9);
+    if (!time_str) return NULL;
+
     time_t t = time(NULL);
     struct tm *tm_info = localtime(&t);
-    char time_str[9];
-    snprintf(time_str, sizeof(time_str), "%02d:%02d:%02d", tm_info->tm_hour, tm_info->tm_min, tm_info->tm_sec);
+    snprintf(time_str, 9, "%02d:%02d:%02d", tm_info->tm_hour, tm_info->tm_min, tm_info->tm_sec);
     return time_str;
 }
 
 char* get_current_date_str(){
+    char *date_str = (char*)malloc(sizeof(char) * 11);
+    if (!date_str) return NULL;
+
     time_t t = time(NULL);
     struct tm *tm_info = localtime(&t);
-    char date_str[11];
-    snprintf(date_str, sizeof(date_str), "%02d:%02d:%04d", tm_info->tm_mday, tm_info->tm_mon + 1, tm_info->tm_year + 1900);
+    
+    snprintf(date_str, 11, "%02d:%02d:%04d", tm_info->tm_mday, tm_info->tm_mon + 1, tm_info->tm_year + 1900);
     return date_str;
 }
 
@@ -111,16 +116,32 @@ errCodes parse_time(const char* datetime, struct tm* timestruct){
 }
 
 errCodes cmd_time() {
-    printf("Current time: %s\n", get_current_time_str());
+    char *time =  get_current_time_str();
+
+    if (!time){
+        printf("Memory allocation error.\n");
+        return MEM_ALLOC_ERR;
+    }
+
+    printf("Current time: %s\n", time);
+    free(time);
     return SUCCESS;
 }
 
 errCodes cmd_date() {
-    printf("Current date: %s\n", get_current_date_str());
+    char *date =  get_current_date_str();
+
+    if (!date){
+        printf("Memory allocation error.\n");
+        return MEM_ALLOC_ERR;
+    }
+
+    printf("Current time: %s\n", date);
+    free(date);
     return SUCCESS;
 }
 
-errCodes cmd_logout(char* args) {
+errCodes cmd_logout() {
     printf("Logging out...\n");
     return LOGOUT;
 }
@@ -181,7 +202,7 @@ errCodes cmd_howmuch_parse_params(char ** msg){
         return DATE_FORMAT_ERR;
     }
 
-    char *buffer = malloc(100);
+    char *buffer = (char*)malloc(sizeof(char) * 100);
     if (!buffer) return MEM_ALLOC_ERR;
     
     double diff_seconds = difftime(now, past_time);
@@ -208,19 +229,19 @@ errCodes cmd_howmuch() {
 
     switch (result){
     case MEM_ALLOC_ERR:
-        printf("Memory allocation error occured during execution of the command\n");
+        printf("Memory allocation error occured during execution of the command");
         break;
     case DATE_FORMAT_ERR:
-        printf("Invalid time format. Expected format: DD:MM:YYYY-HH:MM:SS\n");
+        printf("Invalid time format. Expected format: DD:MM:YYYY-HH:MM:SS");
         break;
     case FLAG_FORMAT_ERR:
-        printf("Invalid flag format. Use -s, -m, -h, or -y.\n");
+        printf("Invalid flag format. Use -s, -m, -h, or -y.");
         break;
     case TOO_FEW_PARAMS_ERR:
-        printf("Too few params for this command. Usage: Howmuch <time> <flag>\n");
+        printf("Too few params for this command. Usage: Howmuch <time> <flag>");
         break;
     case TOO_MANY_PARAMS_ERR:
-        printf("Too many params for this command. Usage: Howmuch <time> <flag>\n");
+        printf("Too many params for this command. Usage: Howmuch <time> <flag>");
         break;
     case SUCCESS:
         printf("%s\n", msg);
@@ -244,7 +265,7 @@ errCodes cmd_sanctions(char* args) {
 typedef struct Command{
     char* name;
     int params;
-    void (*execute)();
+    errCodes (*execute)();
 } Command;
 
 const Command commands[5] = {
@@ -402,28 +423,33 @@ errCodes register_user(User *u) {
     return result;
 }
 
-void execute_cmd(char * cmd){
+errCodes execute_cmd(char * cmd){
     int cmds = sizeof(commands) / sizeof(Command);
+    errCodes result;
     for (int i = 0; i < cmds; ++i){
         if (strcmp(cmd, commands[i].name) == 0){
-            commands[i].execute();
-            while (getchar() != '\n');
-            return;
+            result = commands[i].execute();
+            // need to add while (getchar() != '\n') in Time and Date command, or to make them like the Howmuch command in part of parsing extra params 
+            // while (getchar() != '\n'); // do I need it here?
+            return result;
         }
     }
     printf("No such command\n");
     while (getchar() != '\n');
-    return;
+    return SUCCESS; // perhaps it would be better to come up with a separate status for the unfound command
 }
 
 void session(User *u){
     printf("\nSystem\n");
-
+    errCodes result;
     char command[20];
     while (true){
         printf("Enter a command: ");
         scanf("%19s", command);
-        execute_cmd(command);
+        result = execute_cmd(command);
+        if (result == LOGOUT){
+            return;
+        }
     }
     
 }
@@ -448,14 +474,12 @@ int main(){
         case 1:
             result = login_user(&u);
             if (result == USER_FOUND){
-                // printf("session..."); // session()
                 session(&u);
             }
             break;
         case 2:
             result = register_user(&u);
             if (result == SUCCESS){
-                // printf("session..."); // session()
                 session(&u);
             }
             break;
