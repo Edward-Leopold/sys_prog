@@ -31,17 +31,17 @@ typedef struct User{
 } User;
 
 errCodes dynamic_fgets(char ** s) {
-    size_t size = 16;  // Начальный размер буфера
+    size_t capacity = 16;  // Начальный размер буфера
     size_t len = 0;    // Текущая длина строки
-    char *buffer = (char*)malloc(sizeof(char) * size);
+    char *buffer = (char*)malloc(sizeof(char) * capacity);
     
     if (!buffer) return MEM_ALLOC_ERR;  // Проверяем выделение памяти
 
     int ch;
     while ((ch = getchar()) != '\n' && ch != EOF) {
-        if (len + 1 >= size) {  // Увеличиваем буфер при необходимости
-            size *= 2;
-            char *new_buffer = (char*)realloc(buffer, sizeof(char) * size);
+        if (len + 1 >= capacity) {  // Увеличиваем буфер при необходимости
+            capacity *= 2;
+            char *new_buffer = (char*)realloc(buffer, sizeof(char) * capacity);
             if (!new_buffer) {
                 free(buffer);
                 return MEM_ALLOC_ERR;
@@ -616,6 +616,7 @@ errCodes execute_cmd(char * cmd){
 
 void session(User *u){
     printf("\nSystem\n");
+    printf("Welcome, %s!\n", u->login);
     errCodes result;
     char command[20];
     while (true){
