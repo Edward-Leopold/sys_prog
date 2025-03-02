@@ -477,7 +477,7 @@ errCodes cmd_sanctions_parse_params(){
     return SUCCESS;
 }
 
-errCodes cmd_sanctions(char* args) {
+errCodes cmd_sanctions() {
     errCodes result = cmd_sanctions_parse_params();
 
     switch (result){
@@ -835,7 +835,6 @@ errCodes execute_cmd(char * cmd){
     for (int i = 0; i < cmds; ++i){
         if (strcmp(cmd, commands[i].name) == 0){
             result = commands[i].execute();
-            // need to add while (getchar() != '\n') in Time and Date command, or to make them like the Howmuch command in part of parsing extra params 
             // while (getchar() != '\n'); // do I need it here?
             return result;
         }
