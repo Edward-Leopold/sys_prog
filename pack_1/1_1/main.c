@@ -747,6 +747,8 @@ errCodes login_user(User *u) {
 }
 
 errCodes register_user(User *u) {
+    memset(u, 0, sizeof(User));
+
     printf("\nNew user registration\n");
     printf("Create a login (login can be no more than 6 characters long and consist of characters of the Latin alphabet and numbers)\n");
     while (true){
