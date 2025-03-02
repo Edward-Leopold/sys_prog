@@ -189,24 +189,66 @@ errCodes cmd_time() {
         break;
     case SUCCESS:
         printf("Current time: %s\n", time);
-        free(time);
+        break;
     default:
         break;
     }
     
+    if (time) free(time);
+    return SUCCESS;
+}
+
+errCodes cmd_date_parse_params(char ** msg){
+    char *input = NULL;
+    errCodes result = dynamic_fgets(&input);
+
+    switch (result){
+    case MEM_ALLOC_ERR:
+        return MEM_ALLOC_ERR;
+        break;
+    case SUCCESS:
+        break;
+    default:
+        break;
+    }
+
+    char extra[2];
+    memset(extra, 0, sizeof(extra));
+    int count = sscanf(input, "%1s", extra);
+    free(input);
+
+    if (count == 1) {
+        return TOO_MANY_PARAMS_ERR;
+    }
+
+    *msg = get_current_date_str();
+
+    if(!msg){
+        return MEM_ALLOC_ERR;
+    }
+
     return SUCCESS;
 }
 
 errCodes cmd_date() {
-    char *date =  get_current_date_str();
+    char * date = NULL;
+    errCodes result = cmd_date_parse_params(&date);
 
-    if (!date){
+    switch (result){
+    case MEM_ALLOC_ERR:
         printf("Memory allocation error.\n");
-        return MEM_ALLOC_ERR;
+        break;
+    case TOO_MANY_PARAMS_ERR:
+        printf("This command need no params\n");
+        break;
+    case SUCCESS:
+        printf("Current date: %s\n", date);
+        break;
+    default:
+        break;
     }
-
-    printf("Current time: %s\n", date);
-    free(date);
+    
+    if (date) free(date);
     return SUCCESS;
 }
 
@@ -473,7 +515,6 @@ errCodes cmd_sanctions(char* args) {
         break;
     }
 
-    // printf("Executing Sanctions with args: %s\n", args);
     return SUCCESS;
 }
 
