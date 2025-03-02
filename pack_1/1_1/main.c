@@ -144,16 +144,56 @@ errCodes parse_time(const char* datetime, struct tm* timestruct){
     return SUCCESS;
 }
 
-errCodes cmd_time() {
-    char *time =  get_current_time_str();
+errCodes cmd_time_parse_params(char ** msg){
+    char *input = NULL;
+    errCodes result = dynamic_fgets(&input);
 
-    if (!time){
-        printf("Memory allocation error.\n");
+    switch (result){
+    case MEM_ALLOC_ERR:
+        return MEM_ALLOC_ERR;
+        break;
+    case SUCCESS:
+        break;
+    default:
+        break;
+    }
+
+    char extra[2];
+    memset(extra, 0, sizeof(extra));
+    int count = sscanf(input, "%1s", extra);
+    free(input);
+
+    if (count == 1) {
+        return TOO_MANY_PARAMS_ERR;
+    }
+
+    *msg = get_current_time_str();
+
+    if(!msg){
         return MEM_ALLOC_ERR;
     }
 
-    printf("Current time: %s\n", time);
-    free(time);
+    return SUCCESS;
+}
+
+errCodes cmd_time() {
+    char * time = NULL;
+    errCodes result = cmd_time_parse_params(&time);
+
+    switch (result){
+    case MEM_ALLOC_ERR:
+        printf("Memory allocation error.\n");
+        break;
+    case TOO_MANY_PARAMS_ERR:
+        printf("This command need no params\n");
+        break;
+    case SUCCESS:
+        printf("Current time: %s\n", time);
+        free(time);
+    default:
+        break;
+    }
+    
     return SUCCESS;
 }
 
@@ -257,28 +297,28 @@ errCodes cmd_howmuch() {
 
     switch (result){
     case MEM_ALLOC_ERR:
-        printf("Memory allocation error occured during execution of the command");
+        printf("Memory allocation error occured during execution of the command\n");
         break;
     case DATE_FORMAT_ERR:
-        printf("Invalid time format. Expected format: DD:MM:YYYY-HH:MM:SS");
+        printf("Invalid time format. Expected format: DD:MM:YYYY-HH:MM:SS\n");
         break;
     case FLAG_FORMAT_ERR:
-        printf("Invalid flag format. Use -s, -m, -h, or -y.");
+        printf("Invalid flag format. Use -s, -m, -h, or -y.\n");
         break;
     case TOO_FEW_PARAMS_ERR:
-        printf("Too few params for this command. Usage: Howmuch <time> <flag>");
+        printf("Too few params for this command. Usage: Howmuch <time> <flag>\n");
         break;
     case TOO_MANY_PARAMS_ERR:
-        printf("Too many params for this command. Usage: Howmuch <time> <flag>");
+        printf("Too many params for this command. Usage: Howmuch <time> <flag>\n");
         break;
     case SUCCESS:
         printf("%s\n", msg);
-        free(msg);
         break;
     default:
         break;
     }
 
+    if (msg) free(msg);
     // Now the function always returns "success", until I figured out how to use return codes other than in error message output. 
     // Maybe later I’ll make this function void
     return SUCCESS;
