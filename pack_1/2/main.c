@@ -2,6 +2,7 @@
 #include <string.h> 
 #include <stdbool.h>  
 #include <ctype.h>
+#include <stdlib.h>
 
 typedef enum errCodes{
     SUCCESS,
@@ -9,7 +10,7 @@ typedef enum errCodes{
     NO_FLAG_ERR,
     FILE_OPEN_ERR,
     MEM_ALLOC_ERR,
-
+    UNKNOWN_FLAG_ERR,
 } errCodes;
 
 typedef enum flagOptions{
@@ -32,12 +33,15 @@ flagOptions try_get_flag(const char * str, int * n){
         }
     } else if(str == strstr(str, "copy") && strlen(str) >= 5){
         bool is_valid_flag = true;
-        char * p = str[4];
-        for (; p <= str[strlen(str) - 1]; p++){
-            if(!isdigit(*p)) is_valid_flag = false;
+        const char *p = str + 4;  
+        for (; *p != '\0'; p++){
+            if (!isdigit(*p)) {
+                is_valid_flag = false;
+                break;
+            }
         }
         if (is_valid_flag){
-            *n = atoi(p);
+            *n = atoi(p); 
             return COPY_N;
         }
     } else if(str == strstr(str, "mask") && strlen(str) == 4){
@@ -57,34 +61,41 @@ errCodes parse_argv(int argc, char ** argv, flagOptions * flag, int * n){
     bool is_valid_flag = false;
     const char valid_n_values_xor[] = "23456";
 
-    // if (argv[argc - 1] == strstr(argv[argc - 1], "xor") && strlen(argv[argc - 1]) == 4){
-    //     char *s = argv[argc - 1];
-    //     for (int i = 0; i < strlen(valid_n_values_xor); ++i){
-    //         if (s[3] == valid_n_values_xor[i]){
-    //             is_valid_flag = true;
-    //             *n = (int)(s[3] - '0');
-    //             *flag = XOR_N;
-    //         }
-    //     }
-    // } else if (argv[argc - 1] == strstr(argv[argc - 1], "copy") && argv[argc - 1][4]){
-    //     char *s = argv[argc - 1];
-    //     is_valid_flag = true;
-    //     for (char * p = s[4]; p <= s[strlen(s) - 1]; s++){
-    //         if(!isdigit(*p)) is_valid_flag = false;
-    //     }
-    //     if (is_valid_flag) *flag = COPY_N;
-    // }
-
-    for (int i = 1; i < argc; ++i){
-
+    if(try_get_flag(argv[argc - 1], n) == XOR_N){
+        *flag = XOR_N;
+    } else if(try_get_flag(argv[argc - 1], n) == COPY_N){
+        *flag = COPY_N;
+    } else if (try_get_flag(argv[argc - 2], n) == MASK){
+        *flag = MASK;
+    } else if (try_get_flag(argv[argc - 2], n) == FIND){
+        *flag = FIND;
+    } else{
+        return UNKNOWN_FLAG_ERR;
     }
-
+    
+    
     return SUCCESS;
 }
 
 
 int main(int argc, char ** argv){
+    int n = 0;
+    flagOptions flag;
+    errCodes result = parse_argv(argc, argv, &flag, &n);
 
+    switch (result){
+    case TOO_FEW_PARAMS_ERR:
+        printf("Too few params. You have to pass filenames and a flag\n");
+        break;
+    case UNKNOWN_FLAG_ERR:
+        printf("unknown flag\n");
+        break;
+    case SUCCESS:
+        printf("success!\n");
+        break;
+    default:
+        break;
+    }
 
     return 0;
 }
