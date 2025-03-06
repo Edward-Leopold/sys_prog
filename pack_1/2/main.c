@@ -11,6 +11,7 @@ typedef enum errCodes{
     FILE_OPEN_ERR,
     MEM_ALLOC_ERR,
     UNKNOWN_FLAG_ERR,
+    INVALID_HEX_MASK_ERR,
 } errCodes;
 
 typedef enum flagOptions{
@@ -55,7 +56,26 @@ flagOptions try_get_flag(const char * str, int * n){
     return UNKNOWN;
 }
 
-errCodes parse_argv(int argc, char ** argv, flagOptions * flag, int * n){
+errCodes validate_hex_mask(const char * src){
+    const char *hex = "0123456789ABCDEFabcdef";
+
+    for (int i = 0; i < strlen(src); ++i){
+        bool is_valid_symbol = false;
+        for (int j = 0; j < strlen(hex); ++j){
+            if (src[i] == hex[j]){
+                is_valid_symbol = true;
+                break;
+            }
+        }
+        if (!is_valid_symbol){
+            return INVALID_HEX_MASK_ERR;
+        }
+    }
+
+    return SUCCESS;
+}
+
+errCodes parse_argv(const int argc, char ** argv, flagOptions * flag, int * n){
     if (argc < 3) return TOO_FEW_PARAMS_ERR;
     
     bool is_valid_flag = false;
@@ -71,6 +91,21 @@ errCodes parse_argv(int argc, char ** argv, flagOptions * flag, int * n){
         *flag = FIND;
     } else{
         return UNKNOWN_FLAG_ERR;
+    }
+
+    const int last_ind = (*flag == XOR_N || *flag == COPY_N) ? argc - 1 : argc - 2;
+    FILE *file;
+    for (int i = 1; i < last_ind; ++i){
+        file = fopen(argv[i], "r");
+        if (!file) return FILE_OPEN_ERR;
+        fclose(file);
+    }
+
+    if (*flag == MASK){
+        errCodes result = validate_hex_mask(argv[argc - 1]); 
+        if (result != SUCCESS){
+            return result;
+        }
     }
     
     
@@ -90,6 +125,12 @@ int main(int argc, char ** argv){
     case UNKNOWN_FLAG_ERR:
         printf("unknown flag\n");
         break;
+    case INVALID_HEX_MASK_ERR:
+        printf("Invalid hex mask for flag mask\n");
+        break;
+    case FILE_OPEN_ERR:
+        printf("Unable to open one of the passed files\n");
+        break;
     case SUCCESS:
         printf("success!\n");
         break;
@@ -97,5 +138,27 @@ int main(int argc, char ** argv){
         break;
     }
 
+    if (result != SUCCESS) {
+        return 1;
+    }
+
+    switch (flag){
+    case MASK:
+        printf("some process for mask flag...\n");
+        break;
+    case XOR_N:
+        printf("some process for xorN flag...\n");
+        break;
+    case COPY_N:
+        printf("some process for copyN flag...\n");
+        break;
+    case FIND:
+        printf("some process for find flag...\n");
+        break;
+    default:
+        break;
+    }
+
+    
     return 0;
 }
