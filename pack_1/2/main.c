@@ -3,6 +3,8 @@
 #include <stdbool.h>  
 #include <ctype.h>
 #include <stdlib.h>
+#include <math.h>
+#include <limits.h>
 
 typedef enum errCodes{
     SUCCESS,
@@ -12,6 +14,7 @@ typedef enum errCodes{
     MEM_ALLOC_ERR,
     UNKNOWN_FLAG_ERR,
     INVALID_HEX_MASK_ERR,
+    TOO_BIG_HEX_MASK_ERR,
 } errCodes;
 
 typedef enum flagOptions{
@@ -112,6 +115,83 @@ errCodes parse_argv(const int argc, char ** argv, flagOptions * flag, int * n){
     return SUCCESS;
 }
 
+size_t xor_per_file(FILE *file, int n) {
+    // Узнаем размер файла в байтах
+	fseek(file, 0, SEEK_END);
+	size_t size_file = ftell(file);
+	rewind(file);
+
+	size_t total_bits = size_file * 8;
+	const size_t block_bits = 1 << n;
+	const size_t block_bytes = block_bits / 8;
+	const size_t count_blocks = (total_bits + block_bits - 1) / block_bits;
+
+	size_t val = 0;
+	size_t tmp_val;
+	unsigned char buf[block_bytes];
+	for (size_t i = 0; i < count_blocks; ++i) {
+		tmp_val = 0;
+
+		// Читаем block_bytes байт
+		size_t real_count_bytes = fread(buf, 1, block_bytes, file);
+
+		if (real_count_bytes < block_bytes) {
+			memset(buf + real_count_bytes, 0, block_bytes - real_count_bytes);
+		}
+
+		int bit;
+		for (int current_bit = 0; current_bit < block_bits; ++current_bit) {
+			size_t byte_idx = current_bit / 8;
+			size_t bit_idx = 7 - (current_bit % 8);
+			bit = (buf[byte_idx] >> bit_idx) & 1;
+			tmp_val = (tmp_val << 1) | bit;
+		}
+		// Сложение по модулю 2
+		val ^= tmp_val;
+	}
+
+	return val;
+}
+
+void print_xor_results(const int argc, char **argv, size_t *results) {
+    for (int i = 1; i < argc - 1; ++i) {
+        printf("File <%s>: %zu\n", argv[i], results[i - 1]);
+    }
+}
+
+errCodes xorN(const int argc, char ** argv, int n){
+    size_t *results = (size_t *)calloc(argc - 2, sizeof(size_t));
+    if (results == NULL){
+        return MEM_ALLOC_ERR;
+    }
+
+    FILE *file;
+    for (int i = 0; i < argc - 2; ++i){
+        file = fopen(argv[i + 1], "rb");
+
+        if (file == NULL){
+            fclose(file);
+            return FILE_OPEN_ERR;
+        }
+
+        results[i] = xor_per_file(file, n);
+
+        fclose(file);
+    }
+
+    print_xor_results(argc, argv, results);
+    return SUCCESS;
+}
+
+
+// unsigned int hex_to_dec(char * hex){
+    
+// }
+
+// errCodes mask(const int argc, char ** argv){
+//     const char * mask = argv[argc - 1];
+
+// }
 
 int main(int argc, char ** argv){
     int n = 0;
@@ -129,6 +209,7 @@ int main(int argc, char ** argv){
         printf("Invalid hex mask for flag mask\n");
         break;
     case FILE_OPEN_ERR:
+        // file does not exist or it cannot be openeds
         printf("Unable to open one of the passed files\n");
         break;
     case SUCCESS:
@@ -147,7 +228,13 @@ int main(int argc, char ** argv){
         printf("some process for mask flag...\n");
         break;
     case XOR_N:
-        printf("some process for xorN flag...\n");
+        printf("Processing xor flag...\n");
+        result = xorN(argc, argv, n);
+        if (result == MEM_ALLOC_ERR){
+            printf("mem alloc err\n");
+        } else if (result == FILE_OPEN_ERR){
+            printf("passed file cannot be opened\n");
+        }
         break;
     case COPY_N:
         printf("some process for copyN flag...\n");
