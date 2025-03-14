@@ -6,6 +6,9 @@
 #include <math.h>
 #include <limits.h>
 #include <stdint.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 typedef enum errCodes{
     SUCCESS,
@@ -17,6 +20,7 @@ typedef enum errCodes{
     UNKNOWN_FLAG_ERR,
     INVALID_HEX_MASK_ERR,
     TOO_BIG_HEX_MASK_ERR,
+    INVALID_COPY_N_ERR,
 } errCodes;
 
 typedef enum flagOptions{
@@ -110,6 +114,9 @@ errCodes parse_argv(const int argc, char ** argv, flagOptions * flag, int * n){
         }
     }
     
+    if(*flag == COPY_N){
+        if (n <= 0) return INVALID_COPY_N_ERR;
+    }
     
     return SUCCESS;
 }
@@ -250,6 +257,89 @@ errCodes mask(const int argc, char ** argv){
     return SUCCESS;
 }
 
+char* generate_filename(const char* filename, const unsigned int n){
+    unsigned int n_len = 0;
+    for (unsigned int i = n; i != 0; i /= 10) ++n_len;
+
+    char * res = (char *)calloc(strlen(filename) + 1 + n_len + 1, sizeof(char));
+    if (!res) return NULL;
+
+    size_t len = strlen(filename);
+    int k = -1;
+	for (size_t i = len; i >= 0; --i) {
+		if (filename[i] == '.') {
+			k = (int)i;
+            break;
+		}
+	}
+
+    if (k == -1) {
+        sprintf(res, "%s_%d", filename, n);
+    } else {
+        char name_part[k + 1];
+        char ext_part[len - k + 1]; 
+        strncpy(name_part, filename, k);
+        name_part[k] = '\0';
+        strcpy(ext_part, filename + k);
+        sprintf(res, "%s_%d%s", name_part, n, ext_part);
+    }
+
+    return res;
+}
+
+errCodes copyN(const int argc, char ** argv, int n){
+    for (int i = 1; i < argc - 1; ++i) { // Последний аргумент — флаг, пропускаем его
+        FILE *src = fopen(argv[i], "rb");
+        if (!src) {
+            return FILE_OPEN_ERR;
+        }
+
+        for (int j = 1; j <= n; ++j) {
+            pid_t pid = fork();
+            if (pid < 0) {
+                fclose(src);
+                return MEM_ALLOC_ERR; // Ошибка при создании процесса
+            }
+            if (pid == 0) { // Дочерний процесс
+                char *new_filename = generate_filename(argv[i], j);
+                if (!new_filename) {
+                    fclose(src);
+                    exit(MEM_ALLOC_ERR);
+                }
+
+                FILE *dest = fopen(new_filename, "wb");
+                if (!dest) {
+                    free(new_filename);
+                    fclose(src);
+                    exit(FILE_OPEN_ERR);
+                }
+
+                char buffer[4096];
+                size_t bytes;
+                rewind(src); // Переместить указатель чтения в начало
+                while ((bytes = fread(buffer, 1, sizeof(buffer), src)) > 0) {
+                    fwrite(buffer, 1, bytes, dest);
+                }
+
+                fclose(dest);
+                free(new_filename);
+                fclose(src);
+                exit(SUCCESS);
+            }
+        }
+
+        fclose(src);
+
+        // Ждем завершения всех дочерних процессов
+        for (int j = 1; j <= n; ++j) {
+            int status;
+            wait(&status);
+        }
+    }
+
+    return SUCCESS;
+}
+
 int main(int argc, char ** argv){
     int n = 0;
     flagOptions flag;
@@ -265,8 +355,11 @@ int main(int argc, char ** argv){
     case INVALID_HEX_MASK_ERR:
         printf("Invalid hex mask for flag mask\n");
         break;
+    case INVALID_COPY_N_ERR:
+        printf("Ivalid number passed for copy flag\n");
+        break;
     case FILE_OPEN_ERR:
-        // file does not exist or it cannot be openeds
+        // file does not exist or it cannot be opened
         printf("Unable to open one of the passed files\n");
         break;
     case SUCCESS:
@@ -303,6 +396,15 @@ int main(int argc, char ** argv){
         break;
     case COPY_N:
         printf("Processing copyN flag...\n");
+
+        printf("copyN will create %d copies.\n", n);
+
+        result = copyN(argc, argv, n);
+        if (result == MEM_ALLOC_ERR){
+            printf("mem alloc err\n");
+        } else if (result == FILE_OPEN_ERR){
+            printf("passed file cannot be opened\n");
+        }
         break;
     case FIND:
         printf("Processing find flag...\n");
