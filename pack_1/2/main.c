@@ -5,12 +5,14 @@
 #include <stdlib.h>
 #include <math.h>
 #include <limits.h>
+#include <stdint.h>
 
 typedef enum errCodes{
     SUCCESS,
     TOO_FEW_PARAMS_ERR,
     NO_FLAG_ERR,
     FILE_OPEN_ERR,
+    FILE_READ_ERR,
     MEM_ALLOC_ERR,
     UNKNOWN_FLAG_ERR,
     INVALID_HEX_MASK_ERR,
@@ -170,7 +172,7 @@ errCodes xorN(const int argc, char ** argv, int n){
         file = fopen(argv[i + 1], "rb");
 
         if (file == NULL){
-            fclose(file);
+            free(results);
             return FILE_OPEN_ERR;
         }
 
@@ -180,18 +182,80 @@ errCodes xorN(const int argc, char ** argv, int n){
     }
 
     print_xor_results(argc, argv, results);
+    free(results);
     return SUCCESS;
 }
 
 
-// unsigned int hex_to_dec(char * hex){
+int charToInt(char c){
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'A' && c <= 'Z') return c - 'A' + 10;
+	if (c >= 'a' && c <= 'z') return c - 'a' + 10;
+    return -1;
+}
+
+long long gorner(const char *number, int base) {
+    long long res = 0;
+    int digit;
+    for (int i = 0; number[i]; ++i){
+        digit = charToInt(number[i]);
+        if (digit < 0 || digit >= base){
+            return -1;
+        }
+        res = res * base + digit;
+    }
     
-// }
+    return res;
+}
 
-// errCodes mask(const int argc, char ** argv){
-//     const char * mask = argv[argc - 1];
+size_t hex_to_dec(const char * hex_num){
+    size_t res = gorner(hex_num, 16);
+    return res;
+}
 
-// }
+void print_mask_results(const int argc, char **argv, size_t *results) {
+    for (int i = 1; i < argc - 2; ++i) {
+        printf("File <%s>: %zu\n", argv[i], results[i - 1]);
+    }
+}
+
+errCodes mask(const int argc, char ** argv){
+    const size_t mask_decimal = hex_to_dec(argv[argc - 1]);
+    if (mask_decimal > UINT32_MAX) {
+        return TOO_BIG_HEX_MASK_ERR;
+    }
+    printf("hex mask: %zu\n", mask_decimal);
+
+    size_t * cnt_results = (size_t *)calloc(argc - 3, sizeof(size_t));
+    if (cnt_results == NULL){
+        return MEM_ALLOC_ERR;
+    }
+
+    FILE *file;
+    for (int i = 1; i < argc - 2; ++i){
+        file = fopen(argv[i], "rb");
+        if (file == NULL){
+            free(cnt_results);
+            return FILE_OPEN_ERR;
+        }
+        printf("file %s\n", argv[i]);
+
+        uint32_t num;
+        while (fread(&num, sizeof(uint32_t), 1, file) == 1){
+            printf("got num: %d\n", num);
+            if (num == mask_decimal) {
+                cnt_results[i - 1]++;
+                
+            }
+        }
+
+        fclose(file);
+    }
+    
+    print_mask_results(argc, argv, cnt_results);
+    free(cnt_results);
+    return SUCCESS;
+}
 
 int main(int argc, char ** argv){
     int n = 0;
@@ -225,7 +289,15 @@ int main(int argc, char ** argv){
 
     switch (flag){
     case MASK:
-        printf("some process for mask flag...\n");
+        printf("Processing mask flag...\n");
+        result = mask(argc, argv);
+        if (result == MEM_ALLOC_ERR){
+            printf("mem alloc err\n");
+        } else if (result == FILE_OPEN_ERR){
+            printf("passed file cannot be opened\n");
+        } else if (result == TOO_BIG_HEX_MASK_ERR){
+            printf("passed hex mask is too big\n");
+        }
         break;
     case XOR_N:
         printf("Processing xor flag...\n");
@@ -237,10 +309,10 @@ int main(int argc, char ** argv){
         }
         break;
     case COPY_N:
-        printf("some process for copyN flag...\n");
+        printf("Processing copyN flag...\n");
         break;
     case FIND:
-        printf("some process for find flag...\n");
+        printf("Processing find flag...\n");
         break;
     default:
         break;
