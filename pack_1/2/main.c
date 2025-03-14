@@ -31,7 +31,7 @@ flagOptions try_get_flag(const char * str, int * n){
     const char valid_n_values_xor[] = "23456";
 
     if (str == strstr(str, "xor") && strlen(str) == 4){
-        for (int i = 0; i < strlen(valid_n_values_xor); ++i){
+        for (size_t i = 0; i < strlen(valid_n_values_xor); ++i){
             if (str[3] == valid_n_values_xor[i]){
                 *n = (int)(str[3] - '0');
                 return XOR_N;
@@ -64,9 +64,9 @@ flagOptions try_get_flag(const char * str, int * n){
 errCodes validate_hex_mask(const char * src){
     const char *hex = "0123456789ABCDEFabcdef";
 
-    for (int i = 0; i < strlen(src); ++i){
+    for (size_t i = 0; i < strlen(src); ++i){
         bool is_valid_symbol = false;
-        for (int j = 0; j < strlen(hex); ++j){
+        for (size_t j = 0; j < strlen(hex); ++j){
             if (src[i] == hex[j]){
                 is_valid_symbol = true;
                 break;
@@ -82,9 +82,6 @@ errCodes validate_hex_mask(const char * src){
 
 errCodes parse_argv(const int argc, char ** argv, flagOptions * flag, int * n){
     if (argc < 3) return TOO_FEW_PARAMS_ERR;
-    
-    bool is_valid_flag = false;
-    const char valid_n_values_xor[] = "23456";
 
     if(try_get_flag(argv[argc - 1], n) == XOR_N){
         *flag = XOR_N;
@@ -142,7 +139,7 @@ size_t xor_per_file(FILE *file, int n) {
 		}
 
 		int bit;
-		for (int current_bit = 0; current_bit < block_bits; ++current_bit) {
+		for (size_t current_bit = 0; current_bit < block_bits; ++current_bit) {
 			size_t byte_idx = current_bit / 8;
 			size_t bit_idx = 7 - (current_bit % 8);
 			bit = (buf[byte_idx] >> bit_idx) & 1;
@@ -224,7 +221,6 @@ errCodes mask(const int argc, char ** argv){
     if (mask_decimal > UINT32_MAX) {
         return TOO_BIG_HEX_MASK_ERR;
     }
-    printf("hex mask: %zu\n", mask_decimal);
 
     size_t * cnt_results = (size_t *)calloc(argc - 3, sizeof(size_t));
     if (cnt_results == NULL){
@@ -238,14 +234,11 @@ errCodes mask(const int argc, char ** argv){
             free(cnt_results);
             return FILE_OPEN_ERR;
         }
-        printf("file %s\n", argv[i]);
 
         uint32_t num;
         while (fread(&num, sizeof(uint32_t), 1, file) == 1){
-            printf("got num: %d\n", num);
             if (num == mask_decimal) {
                 cnt_results[i - 1]++;
-                
             }
         }
 
