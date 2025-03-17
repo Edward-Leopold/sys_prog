@@ -42,16 +42,9 @@ flagOptions try_get_flag(const char * str, int * n){
             }
         }
     } else if(str == strstr(str, "copy") && strlen(str) >= 5){
-        bool is_valid_flag = true;
-        const char *p = str + 4;  
-        for (; *p != '\0'; p++){
-            if (!isdigit(*p)) {
-                is_valid_flag = false;
-                break;
-            }
-        }
-        if (is_valid_flag){
-            *n = atoi(p); 
+        const char *p = str + 4;
+        if (*p != '\0' && strspn(p, "0123456789") == strlen(p)) { 
+            *n = atoi(p);
             return COPY_N;
         }
     } else if(str == strstr(str, "mask") && strlen(str) == 4){
@@ -115,7 +108,7 @@ errCodes parse_argv(const int argc, char ** argv, flagOptions * flag, int * n){
     }
     
     if(*flag == COPY_N){
-        if (n <= 0) return INVALID_COPY_N_ERR;
+        if (*n <= 0) return INVALID_COPY_N_ERR;
     }
     
     return SUCCESS;
@@ -289,18 +282,18 @@ char* generate_filename(const char* filename, const unsigned int n){
 
 errCodes copyN(const int argc, char ** argv, int n){
     for (int i = 1; i < argc - 1; ++i) { // Последний аргумент — флаг, пропускаем его
-        FILE *src = fopen(argv[i], "rb");
-        if (!src) {
-            return FILE_OPEN_ERR;
-        }
 
         for (int j = 1; j <= n; ++j) {
             pid_t pid = fork();
             if (pid < 0) {
-                fclose(src);
                 return MEM_ALLOC_ERR; // Ошибка при создании процесса
             }
             if (pid == 0) { // Дочерний процесс
+                FILE *src = fopen(argv[i], "rb");
+                if (!src) {
+                    exit(FILE_OPEN_ERR);
+                }
+
                 char *new_filename = generate_filename(argv[i], j);
                 if (!new_filename) {
                     fclose(src);
@@ -327,8 +320,6 @@ errCodes copyN(const int argc, char ** argv, int n){
                 exit(SUCCESS);
             }
         }
-
-        fclose(src);
 
         // Ждем завершения всех дочерних процессов
         for (int j = 1; j <= n; ++j) {
