@@ -21,6 +21,7 @@ typedef enum errCodes{
     INVALID_HEX_MASK_ERR,
     TOO_BIG_HEX_MASK_ERR,
     INVALID_COPY_N_ERR,
+    FORK_ERR,
 } errCodes;
 
 typedef enum flagOptions{
@@ -281,14 +282,14 @@ char* generate_filename(const char* filename, const unsigned int n){
 }
 
 errCodes copyN(const int argc, char ** argv, int n){
-    for (int i = 1; i < argc - 1; ++i) { // Последний аргумент — флаг, пропускаем его
+    for (int i = 1; i < argc - 1; ++i) {
 
         for (int j = 1; j <= n; ++j) {
             pid_t pid = fork();
             if (pid < 0) {
-                return MEM_ALLOC_ERR; // Ошибка при создании процесса
+                return FORK_ERR; 
             }
-            if (pid == 0) { // Дочерний процесс
+            if (pid == 0) {
                 FILE *src = fopen(argv[i], "rb");
                 if (!src) {
                     exit(FILE_OPEN_ERR);
@@ -309,7 +310,7 @@ errCodes copyN(const int argc, char ** argv, int n){
 
                 char buffer[4096];
                 size_t bytes;
-                rewind(src); // Переместить указатель чтения в начало
+                rewind(src);
                 while ((bytes = fread(buffer, 1, sizeof(buffer), src)) > 0) {
                     fwrite(buffer, 1, bytes, dest);
                 }
@@ -321,10 +322,13 @@ errCodes copyN(const int argc, char ** argv, int n){
             }
         }
 
-        // Ждем завершения всех дочерних процессов
+        
         for (int j = 1; j <= n; ++j) {
             int status;
             wait(&status);
+            if (status != SUCCESS){
+                return status;
+            }
         }
     }
 
@@ -395,6 +399,8 @@ int main(int argc, char ** argv){
             printf("mem alloc err\n");
         } else if (result == FILE_OPEN_ERR){
             printf("passed file cannot be opened\n");
+        } else if (result == FORK_ERR){
+            printf("fork error occcured during execution of the program\n");
         }
         break;
     case FIND:
