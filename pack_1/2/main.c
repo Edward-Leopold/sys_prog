@@ -22,6 +22,8 @@ typedef enum errCodes{
     TOO_BIG_HEX_MASK_ERR,
     INVALID_COPY_N_ERR,
     FORK_ERR,
+    SUBSTR_FOUND,
+    SUBSTR_NOT_FOUND,
 } errCodes;
 
 typedef enum flagOptions{
@@ -31,6 +33,52 @@ typedef enum flagOptions{
     FIND,
     UNKNOWN,
 }flagOptions;
+
+/**
+ * @brief Reads an entire text file into a dynamically allocated string.
+ *
+ * @param s Pointer to a string where the file content will be stored.  
+ *          The caller is responsible for freeing the allocated memory using free().  
+ * @param src Pointer to the file (must be opened for reading).
+ * @return The number of bytes read (excluding the null terminator),  
+ *         0 if the file is empty, or -1 in case of an error (e.g., memory allocation failure).
+ *
+ * @note This function uses dynamic memory allocation,  
+ *       so it is important to free `*s` after use.
+ */
+ssize_t read_file_to_str(char ** s, FILE* src) {
+    if (!src) return -1;
+    ssize_t capacity = 1024;
+    ssize_t len = 0;
+    char *buffer = (char*)malloc(sizeof(char) * capacity);
+    
+    if (!buffer) return -1; 
+
+    int ch;
+    while ((ch = fgetc(src)) != EOF) {
+        if (len + 1 >= capacity) { 
+            capacity *= 2;
+            char *new_buffer = (char*)realloc(buffer, sizeof(char) * capacity);
+            if (!new_buffer) {
+                free(buffer);
+                return -1;
+            }
+            buffer = new_buffer;
+        }
+        buffer[len++] = (char)ch;
+    }
+
+    if (len == 0 && ch == EOF) { 
+        free(buffer);
+        return 0;
+    }
+
+    buffer[len] = '\0';
+    *s = buffer;
+
+    return len;
+}
+
 
 flagOptions try_get_flag(const char * str, int * n){
     const char valid_n_values_xor[] = "23456";
@@ -335,6 +383,64 @@ errCodes copyN(const int argc, char ** argv, int n){
     return SUCCESS;
 }
 
+errCodes findStr(const int argc, char ** argv, int ** files_indecies){
+    *files_indecies = (int *)calloc(argc - 3, sizeof(int));
+    if (!(*files_indecies)){
+        return MEM_ALLOC_ERR;
+    }
+
+    int len = 0;
+    bool is_str_found = false;
+
+    for (int i = 1; i < argc - 2; ++i) {
+        pid_t pid = fork();
+        if (pid < 0) {
+            return FORK_ERR; 
+        }
+        if (pid == 0) {
+            FILE *src = fopen(argv[i], "rb");
+            if (!src) {
+                exit(FILE_OPEN_ERR);
+            }
+
+            errCodes res;
+            char * line = NULL;
+            if(read_file_to_str(&line, src) != -1){
+                const char* pos = strstr(line, argv[argc - 1]);
+                if (pos){
+                    res = SUBSTR_FOUND;
+                } else{
+                    res = SUBSTR_NOT_FOUND;
+                }
+            } else{
+                res = MEM_ALLOC_ERR;
+            }
+            
+            fclose(src);
+            exit(res);
+        }
+    }
+
+    for (int j = 1; j < argc - 2; ++j) {
+        int status;
+        wait(&status);
+        if (WIFEXITED(status)) {
+            int exit_code = WEXITSTATUS(status);
+            if (exit_code == MEM_ALLOC_ERR || exit_code == FILE_OPEN_ERR) {
+                return exit_code;
+            } else if (exit_code == SUBSTR_FOUND) {
+                is_str_found = true;
+                (*files_indecies)[len++] = j;
+            }
+        }
+    }
+
+    (*files_indecies)[len] = -1;
+    if (!is_str_found) return SUBSTR_NOT_FOUND;
+    return SUCCESS;
+}
+
+
 int main(int argc, char ** argv){
     int n = 0;
     flagOptions flag;
@@ -405,6 +511,23 @@ int main(int argc, char ** argv){
         break;
     case FIND:
         printf("Processing find flag...\n");
+
+        int * files_indecies = NULL;
+        result = findStr(argc, argv, &files_indecies);
+        if (result == MEM_ALLOC_ERR){
+            printf("mem alloc err\n");
+        } else if (result == FILE_OPEN_ERR){
+            printf("passed file cannot be opened\n");
+        } else if (result == FORK_ERR){
+            printf("fork error occcured during execution of the program\n");
+        } else if (result == SUBSTR_NOT_FOUND){
+            printf("string was not found in any of the files\n");
+        } else if(result == SUCCESS && files_indecies){
+            for (int i = 0; files_indecies[i] != -1; ++i){
+                printf("String was found at: %s\n", argv[files_indecies[i]]);
+            }
+            free(files_indecies);
+        }
         break;
     default:
         break;
