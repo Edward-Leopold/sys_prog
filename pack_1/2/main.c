@@ -374,8 +374,11 @@ errCodes copyN(const int argc, char ** argv, int n){
         for (int j = 1; j <= n; ++j) {
             int status;
             wait(&status);
-            if (status != SUCCESS){
-                return status;
+            if (WIFEXITED(status)) {
+                int exit_code = WEXITSTATUS(status);
+                if (exit_code != SUCCESS) {
+                    return exit_code;
+                }
             }
         }
     }
