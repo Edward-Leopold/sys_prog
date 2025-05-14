@@ -1,4 +1,5 @@
 .vscode
 *.out
 test.c
+test.cpp
 test
