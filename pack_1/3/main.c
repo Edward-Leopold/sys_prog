@@ -31,7 +31,7 @@ void get_permissions(const mode_t mode, char *str) {
 void list_directory(const char *dirname) {
     DIR *dir = opendir(dirname);
     if (!dir) {
-        fprintf(stderr, "Error while opening directory %s: %s\n", dirname, strerror(errno));
+        printf("Error while opening directory %s\n", dirname);
         return;
     }
 
@@ -43,7 +43,7 @@ void list_directory(const char *dirname) {
             continue;
 
         size_t path_len = strlen(dirname) + strlen(entry->d_name) + 2;
-        char *path = malloc(path_len);
+        char *path = (char *)malloc(path_len);
         if (!path) {
             printf( "Error memory allocation\n");
             continue;
